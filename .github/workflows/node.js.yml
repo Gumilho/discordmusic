@@ -12,6 +12,12 @@ on:
 jobs:
   build:
     runs-on: self-hosted
+    
+    env:
+      TOKEN: ${{ secrets.TOKEN }}
+      GUILD_ID: ${{ secrets.GUILD_ID }}
+      CLIENT_ID: ${{ secrets.CLIENT_ID }}
+
     steps:
     - uses: actions/checkout@v3
     - name: Use Node.js 18.x
