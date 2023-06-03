@@ -21,13 +21,13 @@ const client = new Client({ intents: [
 ] });
 client.commands = new Collection();
 
-const commandsPath = path.join(__dirname, 'src/commands');
-const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.ts'));
-for (const file of commandFiles) {
-    const filePath = path.join(commandsPath, file);
-    const command = require(filePath) as { execute: Command };
-    client.commands.set(file.slice(0, -3), command.execute);
-}
+const commandsPath = path.join(__dirname, 'commands');
+fs.readdirSync(commandsPath).filter(file => file.endsWith('.ts') || file.endsWith('.js')).forEach(file => {
+	const filePath = path.join(commandsPath, file);
+	import(filePath).then((command: { execute: Command }) => {
+		client.commands.set(file.slice(0, -3), command.execute);
+	})
+});
 
 
 client.on(Events.InteractionCreate, async interaction => {
