@@ -24,7 +24,7 @@ export async function execute(interaction: ChatInputCommandInteraction<CacheType
 		player.subscribe(connection)
 		player.add(url)
 		player.play()
-		await interaction.editReply({ content: 'Adicionado' })
+		await interaction.editReply({ content: 'Adicionado!' })
 	} catch (error) {
 		console.error(error);
 		await interaction.editReply({ content: 'Ocorreu um erro' });
