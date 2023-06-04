@@ -126,10 +126,12 @@ export class Player {
 
     public repeat() {
         this.loopMode = !this.loopMode
+        this.message?.edit(this.makeMessage())
     }
 
     public shuffle() {
         this.shuffleMode = !this.shuffleMode
+        this.message?.edit(this.makeMessage())
     }
 
     // END Buttons
@@ -172,7 +174,7 @@ export class Player {
         const shuffle = new ButtonBuilder()
             .setCustomId('shuffle')
             .setLabel('🔀')
-            .setStyle(ButtonStyle.Secondary)
+            .setStyle(this.loopMode ? ButtonStyle.Success : ButtonStyle.Secondary)
         const previous = new ButtonBuilder()
             .setCustomId('previous')
             .setLabel('⏮️')
@@ -188,7 +190,7 @@ export class Player {
         const repeat = new ButtonBuilder()
             .setCustomId('repeat')
             .setLabel('🔁')
-            .setStyle(ButtonStyle.Secondary)
+            .setStyle(this.loopMode ? ButtonStyle.Success : ButtonStyle.Secondary)
         const row = new ActionRowBuilder<ButtonBuilder>()
             .addComponents(shuffle, previous, playpause, next, repeat)
 
@@ -197,8 +199,5 @@ export class Player {
             embeds: [embed],
             components: [row],
         }
-    }
-    public getLoop() {
-        return "Loop " + this.loopMode ? "on" : "off"
     }
 }
