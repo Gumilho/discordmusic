@@ -1,5 +1,5 @@
 import { AudioPlayer, AudioPlayerStatus, VoiceConnection, createAudioPlayer, createAudioResource } from "@discordjs/voice";
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChatInputApplicationCommandData, ChatInputCommandInteraction, Embed, EmbedBuilder, Interaction, InteractionEditReplyOptions, Message, MessagePayload } from "discord.js";
+import { ActionRowBuilder, BaseSelectMenuBuilder, ButtonBuilder, ButtonStyle, ChatInputApplicationCommandData, ChatInputCommandInteraction, Embed, EmbedBuilder, Interaction, InteractionEditReplyOptions, Message, MessagePayload, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from "discord.js";
 import ytdl from "ytdl-core";
 import ytsr from "ytsr";
 import { Song } from "./Song";
@@ -136,6 +136,17 @@ export class Player {
 
     // END Buttons
 
+    private playIndex(index: number) {
+        if (index < 0 || index >= this.songs.length) return
+        if (this.currentSong === this.songs[index]) return
+        this.currentSong = this.songs[index]
+        this.play()
+    }
+
+    public select(url: string) {
+        const index = this.songs.findIndex(song => song.url === url)
+        if (index !== -1) this.playIndex(index)
+    }
 
     public subscribe(connection: VoiceConnection) {
         connection.subscribe(this.player)
@@ -169,7 +180,7 @@ export class Player {
     public makeMessage(): string | MessagePayload | InteractionEditReplyOptions  {
         if (!this.currentSong) throw new Error('No Song')
 
-        const embed = this.currentSong?.makeEmbed()
+        const embed = this.currentSong?.createEmbed()
 		
         const shuffle = new ButtonBuilder()
             .setCustomId('shuffle')
@@ -191,13 +202,20 @@ export class Player {
             .setCustomId('repeat')
             .setLabel('🔁')
             .setStyle(this.loopMode ? ButtonStyle.Success : ButtonStyle.Secondary)
-        const row = new ActionRowBuilder<ButtonBuilder>()
+        const buttonRow = new ActionRowBuilder<ButtonBuilder>()
             .addComponents(shuffle, previous, playpause, next, repeat)
 
+        const options = this.songs.map(song => song.createSelectMenuOption())
+        const select = new StringSelectMenuBuilder()
+            .setCustomId('songselect')
+            .addOptions(...options);
+
+		const selectRow = new ActionRowBuilder<StringSelectMenuBuilder>()
+			.addComponents(select);
+
         return {
-            content: this.songs.map(song => song.title).join(' | '),
             embeds: [embed],
-            components: [row],
+            components: [selectRow, buttonRow],
         }
     }
 }

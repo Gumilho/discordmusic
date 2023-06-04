@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Client, Collection, Events, GatewayIntentBits, Interaction } from 'discord.js';
 import dotenv from 'dotenv';
+import { stringSelect } from './select'
 dotenv.config();
 
 type Command = (interaction: Interaction) => Promise<void>
@@ -76,7 +77,16 @@ client.on(Events.InteractionCreate, async interaction => {
 			}
 		}
 	} else if (interaction.isStringSelectMenu()) {
-		console.log('select')
+		try {
+			await stringSelect(interaction)
+		} catch (error) {
+			console.error(error);
+			if (interaction.replied || interaction.deferred) {
+				await interaction.followUp({ content: 'There was an error while executing this command!', ephemeral: true });
+			} else {
+				await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
+			}
+		}
 	}
 });
 
