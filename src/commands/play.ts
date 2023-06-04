@@ -1,4 +1,4 @@
-import { CacheType, ChatInputCommandInteraction, EmbedBuilder } from "discord.js";
+import { CacheType, ChatInputCommandInteraction } from "discord.js";
 import { joinVoiceChannel } from '@discordjs/voice';
 import { Player } from '../Player';
 
@@ -6,7 +6,7 @@ export async function execute(interaction: ChatInputCommandInteraction<CacheType
 	if (!interaction.inCachedGuild()) return
 	const voiceChannel = interaction.member.voice.channel;
 	if (!voiceChannel) {
-		await interaction.reply('Você precisa estar num canal de voz para isso');
+		await interaction.reply({ content: 'Você precisa estar num canal de voz para isso', ephemeral: true });
 		return;
 	}
 	const connection = joinVoiceChannel({
@@ -14,14 +14,8 @@ export async function execute(interaction: ChatInputCommandInteraction<CacheType
 		guildId: voiceChannel.guildId,
 		adapterCreator: voiceChannel.guild.voiceAdapterCreator,
 	})
-	await interaction.deferReply()
 	const player = Player.getInstance()
-	const query = interaction.options.getString('query')
-	if (!query) return
-	
-		
-	await interaction.editReply({ content: 'Procurando por ' + query })
 	player.subscribe(connection)
-	player.playSong(query)
-	await interaction.editReply({ content: 'Adicionado!' })
+	
+	await player.playSong(interaction)
 }

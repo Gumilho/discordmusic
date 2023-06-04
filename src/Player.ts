@@ -1,13 +1,16 @@
 import { AudioPlayer, AudioPlayerStatus, VoiceConnection, createAudioPlayer, createAudioResource } from "@discordjs/voice";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChatInputApplicationCommandData, ChatInputCommandInteraction, Embed, EmbedBuilder, Interaction, InteractionEditReplyOptions, Message, MessagePayload } from "discord.js";
 import ytdl from "ytdl-core";
 import ytsr from "ytsr";
+import { Song } from "./Song";
 
 export class Player {
-    private songs: string[] = []
-    private loopMode: boolean = true
-    private index: number = 0
+    private songs: Song[] = []
+    private loopMode: boolean = false
+    private shuffleMode: boolean = false
     private player: AudioPlayer;
-    private currentSong?: string;
+    private currentSong?: Song;
+    private message?: Message
 
     private static instance: Player;
     private constructor() { 
@@ -15,138 +18,185 @@ export class Player {
         this.player.on('error', error => console.error('Error:', error.message));
     }
     public static getInstance(): Player {
-        if (!Player.instance) {
-            Player.instance = new Player();
-        }
-
+        if (!Player.instance) Player.instance = new Player();
         return Player.instance;
     }
 
-    public toggle() {
-        this.loopMode = !this.loopMode
+    // Slash commands
+    private async preCommand(interaction: ChatInputCommandInteraction) {
+
+        if (!this.message) await interaction.deferReply()
+        else await interaction.deferReply({ ephemeral: true })
+        
+        const query = interaction.options.getString('query', true)
+        return await this.search(query)
     }
 
-    public async addToQueue(query: string) {
-		const url = await this.search(query)
-        this.songs.push(url)
-        if (!this.currentSong) {
-            this.currentSong = url
+    private async postCommand(interaction: ChatInputCommandInteraction) {
+
+        if (!this.message) {
+            this.player.addListener(AudioPlayerStatus.Idle, () => this.next())
+            this.message = await interaction.editReply(this.makeMessage())
+        } else {
+            await interaction.editReply({ content: 'Concluído!' })
+            await this.message.edit(this.makeMessage())
         }
     }
+    
+    public async addToQueue(interaction: ChatInputCommandInteraction) {
+        const song = await this.preCommand(interaction)
 
-    public async playNext(query: string) {
-		const url = await this.search(query)
-        if (!this.currentSong) {
-            this.songs.push(url)
-            this.currentSong = url
-        }
+        this.songs.push(song)
+        this.currentSong ||= song
+
+        this.postCommand(interaction)
+    }
+
+    public async playNext(interaction: ChatInputCommandInteraction) {
+        const song = await this.preCommand(interaction)
+
+        this.currentSong ||= (this.songs.push(song), song);
         const index = this.songs.indexOf(this.currentSong)
         if (index == -1) throw new Error('Something occured')
-        this.songs.splice(index + 1, 0, url)
+        this.songs.splice(index + 1, 0, song)
+
+        this.postCommand(interaction)
+
     }
 
-    public async playSong(query: string) {
-		const url = await this.search(query)
-        this.songs = [url]
-        this.currentSong = url
+    public async playSong(interaction: ChatInputCommandInteraction) {
+        const song = await this.preCommand(interaction)
+
+        this.songs = [song]
+        this.currentSong = song
         this.play()
+
+        this.postCommand(interaction)
     }
 
-    private play() {
-        if (!this.currentSong) return
-        const stream = ytdl(this.currentSong, { filter: 'audioonly' })
-        const resource = createAudioResource(stream)
-        this.player.play(resource)
+    public stop() { 
+        this.songs = []
+        this.loopMode = false
+        this.shuffleMode = false
+        this.currentSong = undefined
+        this.message?.delete()
+        this.message = undefined
+        this.player.removeListener(AudioPlayerStatus.Idle, () => this.next())
+        this.player.stop()
     }
 
+    // END Slash commands
+
+
+    // Button commands
     public previous() {
-        if (!this.currentSong) return
-        if (this.player.state.status === AudioPlayerStatus.Buffering) return
-        if (this.player.state.status === AudioPlayerStatus.Idle) {
-            
-            const index = this.songs.indexOf(this.currentSong)
-            if (index == -1) throw new Error('Something occured')
-            if (index > 0) {
-                this.currentSong = this.songs[index - 1]
-                this.play()
-            }
+        if (!this.currentSong) return 
+        const index = this.songs.indexOf(this.currentSong)
+        if (index == -1) throw new Error('Something occured')
+        if (index <= 0) {
+            if (!this.loopMode) return
+            this.currentSong = this.songs[this.songs.length - 1]
         } else {
-            const isPlaying = this.player.state.status === AudioPlayerStatus.Playing
-            if (this.player.state.playbackDuration / 1000 > 5)
-            this.player.removeListener(AudioPlayerStatus.Idle, this.playNext)
-            this.player.stop()
-            if (isPlaying) this.play()
-            this.player.addListener(AudioPlayerStatus.Idle, this.playNext)
+            this.currentSong = this.songs[index - 1]
         }
+        this.play()
+        this.message?.edit(this.makeMessage())
     }
+
 
     public next() {
         if (!this.currentSong) return
         const index = this.songs.indexOf(this.currentSong)
         if (index == -1) throw new Error('Something occured')
-        if (index == this.songs.length - 1) return
-        this.player.stop()
+        if (index == this.songs.length - 1) {
+            if (!this.loopMode) return
+            this.currentSong = this.songs[0]
+        } else {
+            this.currentSong = this.songs[index + 1]
+        }
+        this.play()
+        this.message?.edit(this.makeMessage())
     }
 
     public playPause() {
         if (!this.currentSong) return
         if (this.player.state.status === AudioPlayerStatus.Playing) this.player.pause()
-        else this.player.unpause()
+        else if (!this.player.unpause()) this.play()
     }
 
-    public stop() {
-        if (!this.currentSong) return
-        this.songs = [this.currentSong]
-        this.player.removeListener(AudioPlayerStatus.Idle, this.playNext)
-        this.player.stop()
-        this.player.addListener(AudioPlayerStatus.Idle, this.playNext)
+    public repeat() {
+        this.loopMode = !this.loopMode
     }
 
-    // public add(url: string) {
-	// 	this.songs.push(url)
-    // }
-    // public play() {
-    //     if (this.songs.length === 0) {
-    //         this.player.on(AudioPlayerStatus.Idle, this.playNext)
-    //     }
-	// 	if (this.player.state.status === AudioPlayerStatus.Idle) {
-	// 		const stream = ytdl(this.songs[0], { filter: 'audioonly' })
-	// 		const resource = createAudioResource(stream)
-	// 		this.player.play(resource)
-	// 	}
-    // }
-    // public playNext() {
-    //     if (this.songs.length > 0) {
-    //         const currentTrack = this.songs.shift()
-    //         if (this.loopMode) this.songs.push(currentTrack!)
-    //         if (this.songs.length > 0) this.play()
-    //     }
-    // }
-    
-    // public stop() {
-    //     this.player.removeListener(AudioPlayerStatus.Idle, this.playNext);
-    //     this.player.stop()
-    // }
+    public shuffle() {
+        this.shuffleMode = !this.shuffleMode
+    }
 
-    // public skip() {
-    //     this.player.stop()
-    // }
+    // END Buttons
+
 
     public subscribe(connection: VoiceConnection) {
         connection.subscribe(this.player)
     }
+    
+    private play() {
+        if (!this.currentSong) return
+        this.player.play(this.currentSong.createResource())
+    }
 
     public async search(query: string) {
-
+        let result = query
 		if (!ytdl.validateURL(query)) {
 			const filters = await ytsr.getFilters(query)
 			const filter = filters.get('Type')?.get('Video')
             const url = filter?.url
 			const searchResults = await ytsr(url!);
             const item = searchResults.items[0] as { url: string }
-			return item.url
+			result = item.url
 		}
-        return query
+        
+        const metadata = await ytdl.getBasicInfo(result)
+        
+        return new Song(
+            metadata.videoDetails.video_url,
+            metadata.videoDetails.title,
+            metadata.videoDetails.thumbnails.find(thumbnail => thumbnail.width === 1920)?.url!,
+        )
+    }
+
+    public makeMessage(): string | MessagePayload | InteractionEditReplyOptions  {
+        if (!this.currentSong) throw new Error('No Song')
+
+        const embed = this.currentSong?.makeEmbed()
+		
+        const shuffle = new ButtonBuilder()
+            .setCustomId('shuffle')
+            .setLabel('🔀')
+            .setStyle(ButtonStyle.Secondary)
+        const previous = new ButtonBuilder()
+            .setCustomId('previous')
+            .setLabel('⏮️')
+            .setStyle(ButtonStyle.Primary)
+        const playpause = new ButtonBuilder()
+            .setCustomId('playpause')
+            .setLabel('▶️')
+            .setStyle(ButtonStyle.Primary)
+        const next = new ButtonBuilder()
+            .setCustomId('next')
+            .setLabel('⏭️')
+            .setStyle(ButtonStyle.Primary)
+        const repeat = new ButtonBuilder()
+            .setCustomId('repeat')
+            .setLabel('🔁')
+            .setStyle(ButtonStyle.Secondary)
+        const row = new ActionRowBuilder<ButtonBuilder>()
+            .addComponents(shuffle, previous, playpause, next, repeat)
+
+        return {
+            content: this.songs.map(song => song.title).join(' | '),
+            embeds: [embed],
+            components: [row],
+        }
     }
     public getLoop() {
         return "Loop " + this.loopMode ? "on" : "off"

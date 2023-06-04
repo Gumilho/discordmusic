@@ -4,5 +4,5 @@ import { Player } from '../Player';
 export async function execute(interaction: ChatInputCommandInteraction<CacheType>) {
 	const player = Player.getInstance()
 	player.stop()
-	await interaction.reply({ content: 'Musica parada' })
+	await interaction.reply({ content: 'Player fechado', ephemeral: true })
 }
