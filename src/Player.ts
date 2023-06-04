@@ -36,10 +36,10 @@ export class Player {
 
         if (!this.message) {
             this.player.addListener(AudioPlayerStatus.Idle, () => this.next())
-            this.message = await interaction.editReply(this.makeMessage())
+            this.message = await interaction.editReply(this.createMessage())
         } else {
             await interaction.editReply({ content: 'Concluído!' })
-            await this.message.edit(this.makeMessage())
+            await this.message.edit(this.createMessage())
         }
     }
     
@@ -100,7 +100,7 @@ export class Player {
             this.currentSong = this.songs[index - 1]
         }
         this.play()
-        this.message?.edit(this.makeMessage())
+        this.message?.edit(this.createMessage())
     }
 
 
@@ -115,7 +115,7 @@ export class Player {
             this.currentSong = this.songs[index + 1]
         }
         this.play()
-        this.message?.edit(this.makeMessage())
+        this.message?.edit(this.createMessage())
     }
 
     public playPause() {
@@ -126,12 +126,12 @@ export class Player {
 
     public repeat() {
         this.loopMode = !this.loopMode
-        this.message?.edit(this.makeMessage())
+        this.message?.edit(this.createMessage())
     }
 
     public shuffle() {
         this.shuffleMode = !this.shuffleMode
-        this.message?.edit(this.makeMessage())
+        this.message?.edit(this.createMessage())
     }
 
     // END Buttons
@@ -177,7 +177,7 @@ export class Player {
         )
     }
 
-    public makeMessage(): string | MessagePayload | InteractionEditReplyOptions  {
+    public createMessage(): string | MessagePayload | InteractionEditReplyOptions  {
         if (!this.currentSong) throw new Error('No Song')
 
         const embed = this.currentSong?.createEmbed()
